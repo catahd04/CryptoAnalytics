@@ -11,6 +11,69 @@ LIST @BTC.BTC_SCHEMA.BTC_STAGE;
 CREATE OR REPLACE WAREHOUSE LARGE_WH
     WAREHOUSE_SIZE ='LARGE';
 
+/*
+hash as haskey
+block hash
+block number
+block tomestamp
+fee
+input value
+output_value output_btc
+iscoinbase
+outputs
+
+*/
+
+
 SELECT 
-t. $1
+t.$1:hash as hash_key,
+t.$1:block_hash,
+t.$1:block_number,
+t.$1:block_timestamp,
+t.$1:fee,
+t.$1:input_value,
+t.$1:output_value,
+ROUND(t.$1:fee / t.$1:size,12) as fee_per_byte,
+t.$1:is_coinbase,
+t.$1:outputs
 FROM @BTC.BTC_SCHEMA.BTC_STAGE/transactions/date=2026-11-09 t;
+
+CREATE OR REPLACE TABLE BTC.BTC_SCHEMA.BTC (
+
+hash_key VARCHAR,
+block_hash VARCHAR,
+block_number INT,
+block_timestamp timestamp,
+fee FLOAT,
+input_value FLOAT,
+output_value FLOAT,
+fee_per_byte FLOAT,
+is_coinbase BOOLEAN,
+outputs VARIANT);
+
+
+
+CREATE OR REPLACE TASK BTC.BTC_SCHEMA.LOAD_TASK
+WAREHOUSE=LARGE_WH
+SCHEDULE='2 HOUR'
+AS
+
+COPY INTO BTC.BTC_SCHEMA.BTC 
+FROM(
+
+SELECT 
+t.$1:hash as hash_key,
+t.$1:block_hash,
+t.$1:block_number,
+t.$1:block_timestamp,
+t.$1:fee,
+t.$1:input_value,
+t.$1:output_value,
+ROUND(t.$1:fee / t.$1:size,12) as fee_per_byte,
+t.$1:is_coinbase,
+t.$1:outputs
+FROM @BTC.BTC_SCHEMA.BTC_STAGE/transactions/date=2026-11-09 t)
+PATTERN='.*/[0-9]{6,7}[.]snappy[.]parquet';
+
+
+ALTER TASK BTC.BTC_SCHEMA.LOAD_TASK RESUME;
